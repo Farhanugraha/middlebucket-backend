@@ -1,6 +1,7 @@
 package com.middle_bucket.middlebucket.dto.request;
 
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,7 +12,8 @@ import java.time.LocalDate;
 public class MemoRequest {
 
     private String memoNumber;
-    private LocalDate memoData;
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private String memoDate;
     private String memoFrom;
     private String shortDescription;
     private String description;
