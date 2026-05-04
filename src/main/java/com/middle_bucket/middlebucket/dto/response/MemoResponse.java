@@ -7,6 +7,7 @@ import lombok.Setter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -21,6 +22,7 @@ public class MemoResponse {
     private Long authorId;
     private String authorName;
     private LocalDateTime createdAt;
+    private List<MemoAttachmentResponse> attachments;
 
     public static MemoResponse from (Memo memo){
         MemoResponse dto = new MemoResponse();
@@ -35,6 +37,13 @@ public class MemoResponse {
         if (memo.getAuthor() != null) {
             dto.setAuthorId(memo.getAuthor().getId());
             dto.setAuthorName(memo.getAuthor().getName());
+        }
+
+        if (memo.getAttachments() != null) {
+            dto.setAttachments(memo.getAttachments()
+                    .stream()
+                    .map(MemoAttachmentResponse::from)
+                    .toList());
         }
         return dto;
     }

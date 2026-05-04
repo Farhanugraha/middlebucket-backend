@@ -3,12 +3,14 @@ package com.middle_bucket.middlebucket.controller;
 
 import com.middle_bucket.middlebucket.dto.request.MemoRequest;
 import com.middle_bucket.middlebucket.dto.response.ApiResponse;
+import com.middle_bucket.middlebucket.dto.response.MemoAttachmentResponse;
 import com.middle_bucket.middlebucket.dto.response.MemoResponse;
 import com.middle_bucket.middlebucket.service.MemoService;
 import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -18,16 +20,17 @@ public class MemoController {
 
     private final MemoService memoService;
 
-    public MemoController(MemoService memoService){
+    public MemoController(MemoService memoService) {
         this.memoService = memoService;
     }
 
-//      Get All Memos
+    //      Get All Memos
     @GetMapping
-    public ResponseEntity<ApiResponse<List<MemoResponse>>> getAllMemos(){
+    public ResponseEntity<ApiResponse<List<MemoResponse>>> getAllMemos() {
         return ResponseEntity.ok(ApiResponse.succes("Berhasih mengambil memos", memoService.getAllMemos()));
     }
-//      Get Memo By ID
+
+    //      Get Memo By ID
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<MemoResponse>> getMemoById(@PathVariable Long id) {
         try {
@@ -39,12 +42,12 @@ public class MemoController {
         }
     }
 
-//    Post Memo
+    //    Post Memo
     @PostMapping
     public ResponseEntity<ApiResponse<MemoResponse>> createMemo(
             @RequestBody MemoRequest request,
-            Authentication authentication){
-        try{
+            Authentication authentication) {
+        try {
             MemoResponse memo = memoService.createMemo(request, authentication.getName());
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(ApiResponse.succes("Memo Berhasil Dibuat", memo));
@@ -54,13 +57,43 @@ public class MemoController {
         }
     }
 
-//    Delete Memo
+    //    Delete Memo
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteMemo(@PathVariable Long id) {
         try {
             memoService.deleteMemo(id);
             return ResponseEntity.ok(ApiResponse.succes("Memo berhasil dihapus", null));
         } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    //    Upload Attachment endpoint
+    @PostMapping("/{id}/attachments")
+    public ResponseEntity<ApiResponse<MemoAttachmentResponse>> uploadAttachment(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            Authentication authentication) {
+        try {
+            MemoAttachmentResponse attachment = memoService.uploadAttachment(
+                    id, file, authentication.getName());
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ApiResponse.succes("Attachment berhasil diupload", attachment));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    //      Delete Attachment endpoint
+    @DeleteMapping("/attachments/{attachmentId}")
+    public ResponseEntity<ApiResponse<Void>> deleteAttachment(
+            @PathVariable Long attachmentId) {
+        try {
+            memoService.deleteAttachment(attachmentId);
+            return ResponseEntity.ok(ApiResponse.succes("Attachment berhasil dihapus", null));
+        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.error(e.getMessage()));
         }

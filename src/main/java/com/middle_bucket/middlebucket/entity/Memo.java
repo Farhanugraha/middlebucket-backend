@@ -7,6 +7,8 @@ import lombok.Data;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "memos")
@@ -39,6 +41,9 @@ public class Memo {
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    @OneToMany(mappedBy = "memo", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<MemoAttachment> attachments = new ArrayList<>();
 
     @PrePersist
     protected void  onCreate(){
