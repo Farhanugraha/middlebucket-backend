@@ -5,6 +5,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -39,9 +41,8 @@ public class JwtFilter extends OncePerRequestFilter {
 
         if ("OPTIONS".equalsIgnoreCase(method)) return true;
 
-        return EXCLUDED_PATHS.stream().anyMatch(path::equals)
+        return EXCLUDED_PATHS.stream().anyMatch(path::startsWith)
                 || path.startsWith("/uploads/");
-
     }
 
     @Override
@@ -53,7 +54,7 @@ public class JwtFilter extends OncePerRequestFilter {
         String authHeader = request.getHeader("Authorization");
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Missing or invalid Authorization header");
+            chain.doFilter(request, response);
             return;
         }
 
@@ -61,31 +62,32 @@ public class JwtFilter extends OncePerRequestFilter {
 
         try {
             String email = jwtUtil.getEmailFromToken(token);
+            String role = jwtUtil.getRoleFromToken(token);
 
-            if (email == null) {
-                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid token");
-                return;
-            }
-            if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                UserDetails userDetails = userDetailsService.loadUserByUsername(email);
+            System.out.println("=== JWT Filter Debug ===");
+            System.out.println("Email: " + email);
+            System.out.println("Role from token: " + role);
+            System.out.println("Request URI: " + request.getRequestURI());
 
-                if (jwtUtil.validateToken(token)) {
-                    UsernamePasswordAuthenticationToken authToken =
-                            new UsernamePasswordAuthenticationToken(
-                                    userDetails, null, userDetails.getAuthorities()
-                            );
-                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
-                } else {
-                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token expired atau tidak valid");
-                    return;
-                }
+            if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(role));
+
+                System.out.println("Authorities set: " + authorities);
+
+                UsernamePasswordAuthenticationToken authToken =
+                        new UsernamePasswordAuthenticationToken(email, null, authorities);
+                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+
+                System.out.println("Authentication set successfully for: " + email);
             }
 
             chain.doFilter(request, response);
 
         } catch (Exception e) {
-            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token tidak valid: " + e.getMessage());
+            System.err.println("JWT Filter error: " + e.getMessage());
+            e.printStackTrace();
+            chain.doFilter(request, response);
         }
     }
 }

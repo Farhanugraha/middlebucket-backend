@@ -1,6 +1,5 @@
 package com.middle_bucket.middlebucket.service;
 
-
 import com.middle_bucket.middlebucket.dto.request.TaskCompleteRequest;
 import com.middle_bucket.middlebucket.dto.request.TaskRejectRequest;
 import com.middle_bucket.middlebucket.dto.request.TaskRequest;
@@ -59,6 +58,11 @@ public class TaskService {
         User creator = userRepository.findByEmail(creatorEmail)
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
 
+        // Hanya MANAGER yang bisa membuat task
+        if (creator.getRole() != Role.MANAGER) {
+            throw new RuntimeException("Hanya manager yang dapat membuat task");
+        }
+
         Task task = new Task();
         task.setName(request.getName());
         task.setDescription(request.getDescription());
@@ -78,16 +82,22 @@ public class TaskService {
     }
 
     @Transactional
-    public TaskResponse updateTask(Long id, TaskRequest request) {
+    public TaskResponse updateTask(Long id, TaskRequest request, String userEmail) {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Task tidak ditemukan"));
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
+
+        // Hanya MANAGER yang bisa update task
+        if (user.getRole() != Role.MANAGER) {
+            throw new RuntimeException("Hanya manager yang dapat mengubah task");
+        }
 
         task.setName(request.getName());
         task.setDescription(request.getDescription());
         task.setPriority(TaskPriority.valueOf(request.getPriority()));
         task.setDueDate(request.getDueDate());
 
-        // ← tambah ini
         if (request.getStatus() != null && !request.getStatus().isBlank()) {
             task.setStatus(TaskStatus.valueOf(request.getStatus()));
         }
@@ -106,9 +116,17 @@ public class TaskService {
     }
 
     @Transactional
-    public void deleteTask(Long id) {
+    public void deleteTask(Long id, String userEmail) {
         Task task = taskRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Task tidak ditemukan"));
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
+
+        // Hanya MANAGER yang bisa delete task
+        if (user.getRole() != Role.MANAGER) {
+            throw new RuntimeException("Hanya manager yang dapat menghapus task");
+        }
+
         taskRepository.delete(task);
     }
 
@@ -118,6 +136,11 @@ public class TaskService {
                 .orElseThrow(() -> new RuntimeException("Task tidak ditemukan"));
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
+
+        // Hanya assignee yang bisa complete task
+        if (task.getAssignee() == null || !task.getAssignee().getId().equals(user.getId())) {
+            throw new RuntimeException("Anda tidak berhak menyelesaikan task ini");
+        }
 
         task.setStatus(TaskStatus.PENDING_REVIEW);
         task.setCompletionNote(request.getCompletionNote());
@@ -134,6 +157,11 @@ public class TaskService {
         User reviewer = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
 
+        // Hanya MANAGER yang bisa approve
+        if (reviewer.getRole() != Role.MANAGER) {
+            throw new RuntimeException("Hanya manager yang dapat menyetujui task");
+        }
+
         task.setStatus(TaskStatus.DONE);
         task.setReviewedBy(reviewer);
         task.setReviewedAt(LocalDateTime.now());
@@ -148,11 +176,41 @@ public class TaskService {
         User reviewer = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
 
-        task.setStatus(TaskStatus.IN_PROGRESS);
+        // Hanya MANAGER yang bisa reject
+        if (reviewer.getRole() != Role.MANAGER) {
+            throw new RuntimeException("Hanya manager yang dapat merevisi task");
+        }
+
+        task.setStatus(TaskStatus.TODO);
         task.setRevisionNote(request.getRevisionNote());
         task.setReviewedBy(reviewer);
         task.setReviewedAt(LocalDateTime.now());
 
+        return TaskResponse.from(taskRepository.save(task));
+    }
+
+    @Transactional
+    public TaskResponse updateTaskStatus(Long id, String status, String userEmail) {
+        Task task = taskRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Task tidak ditemukan"));
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
+
+        TaskStatus newStatus = TaskStatus.valueOf(status);
+
+        if (user.getRole() != Role.MANAGER) {
+            if (task.getAssignee() == null || !task.getAssignee().getId().equals(user.getId())) {
+                throw new RuntimeException("Anda tidak berhak mengubah status task ini");
+            }
+            if (newStatus == TaskStatus.DONE) {
+                throw new RuntimeException("Task harus melalui proses review terlebih dahulu");
+            }
+            if (newStatus == TaskStatus.PENDING_REVIEW) {
+                throw new RuntimeException("Gunakan tombol Complete untuk menyelesaikan task");
+            }
+        }
+
+        task.setStatus(newStatus);
         return TaskResponse.from(taskRepository.save(task));
     }
 
@@ -166,7 +224,6 @@ public class TaskService {
         );
     }
 
-//    Upload Task Attachment
     @Transactional
     public TaskAttachmentResponse uploadAttachment(Long taskId,
                                                    MultipartFile file,
@@ -178,14 +235,11 @@ public class TaskService {
         User uploader = userRepository.findByEmail(uploaderEmail)
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
 
-        // Create unique file name
         String originalName = file.getOriginalFilename();
         String extension = originalName.substring(originalName.lastIndexOf("."));
         String filename = UUID.randomUUID().toString() + extension;
 
-        // Save into uploads/tasks folder
         Path uploadDir = Paths.get("uploads/tasks");
-        System.out.println("Upload dir absolute path: " + uploadDir.toAbsolutePath());
         if (!Files.exists(uploadDir)) {
             Files.createDirectories(uploadDir);
         }
@@ -193,7 +247,6 @@ public class TaskService {
                 uploadDir.resolve(filename),
                 StandardCopyOption.REPLACE_EXISTING);
 
-        // Save to Database
         TaskAttachment attachment = new TaskAttachment();
         attachment.setTask(task);
         attachment.setFilename(filename);
@@ -201,24 +254,24 @@ public class TaskService {
         attachment.setMimeType(file.getContentType());
         attachment.setSize((int) file.getSize());
         attachment.setUploadedBy(uploader);
-        attachment.setType(type != null ?
-                AttachmentType.valueOf(type) : AttachmentType.task);
+        attachment.setType(type != null ? AttachmentType.valueOf(type) : AttachmentType.task);
 
         return TaskAttachmentResponse.from(taskAttachmentRepository.save(attachment));
     }
 
-//    Delete Attachment
     @Transactional
-    public void deleteAttachment(Long attachmentId) throws IOException {
+    public void deleteAttachment(Long attachmentId, String userEmail) throws IOException {
         TaskAttachment attachment = taskAttachmentRepository.findById(attachmentId)
                 .orElseThrow(() -> new RuntimeException("Attachment tidak ditemukan"));
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
+        if (user.getRole() != Role.MANAGER) {
+            throw new RuntimeException("Hanya manager yang dapat menghapus lampiran");
+        }
 
-        // Remove from storage
         Path filePath = Paths.get("uploads/tasks/" + attachment.getFilename());
         Files.deleteIfExists(filePath);
 
-        // Remove from database
         taskAttachmentRepository.delete(attachment);
     }
-
 }

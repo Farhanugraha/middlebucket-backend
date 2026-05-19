@@ -23,10 +23,12 @@ public class JwtUtil {
         this.expiration = expiration;
     }
 
-    public String generateToken(String email) {
+    public String generateToken(String email, String role) {
         try {
             JWTClaimsSet claimsSet = new JWTClaimsSet.Builder()
                     .subject(email)
+                    .claim("role", role)
+                    .claim("authorities", role)
                     .issueTime(new Date())
                     .expirationTime(new Date(System.currentTimeMillis() + expiration))
                     .build();
@@ -41,6 +43,16 @@ public class JwtUtil {
 
         } catch (JOSEException e) {
             throw new RuntimeException("Error creating JWT token", e);
+        }
+    }
+
+    // Tambahkan method untuk extract role dari token
+    public String getRoleFromToken(String token) {
+        try {
+            SignedJWT signedJWT = parseAndVerify(token);
+            return signedJWT.getJWTClaimsSet().getStringClaim("role");
+        } catch (ParseException | JOSEException e) {
+            return null;
         }
     }
 
@@ -64,6 +76,7 @@ public class JwtUtil {
             return null;
         }
     }
+
     private SignedJWT parseAndVerify(String token) throws ParseException, JOSEException {
         if (token == null || token.isBlank()) {
             throw new ParseException("Token kosong", 0);

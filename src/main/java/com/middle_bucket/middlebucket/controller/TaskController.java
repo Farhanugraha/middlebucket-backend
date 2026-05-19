@@ -1,6 +1,5 @@
 package com.middle_bucket.middlebucket.controller;
 
-
 import com.middle_bucket.middlebucket.dto.request.TaskCompleteRequest;
 import com.middle_bucket.middlebucket.dto.request.TaskRejectRequest;
 import com.middle_bucket.middlebucket.dto.request.TaskRequest;
@@ -11,13 +10,13 @@ import com.middle_bucket.middlebucket.dto.response.TaskStatsResponse;
 import com.middle_bucket.middlebucket.service.TaskService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("api/tasks")
@@ -29,6 +28,7 @@ public class TaskController {
         this.taskService = taskService;
     }
 
+    // Semua user yang login bisa akses (tanpa PreAuthorize)
     @GetMapping
     public ResponseEntity<ApiResponse<List<TaskResponse>>> getAllTasks(
             @RequestParam(required = false) String status) {
@@ -50,6 +50,7 @@ public class TaskController {
         }
     }
 
+    // Create task - semua user bisa (nanti di service dibatasi)
     @PostMapping
     public ResponseEntity<ApiResponse<TaskResponse>> createTask(
             @RequestBody TaskRequest request,
@@ -64,30 +65,32 @@ public class TaskController {
     }
 
     @PatchMapping("/{id}")
-//    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ApiResponse<TaskResponse>> updateTask(
             @PathVariable Long id,
-            @RequestBody TaskRequest request) {
+            @RequestBody TaskRequest request,
+            Authentication authentication) {
         try {
-            return ResponseEntity.ok(ApiResponse.succes("Task berhasil diupdate", taskService.updateTask(id, request)));
+            TaskResponse task = taskService.updateTask(id, request, authentication.getName());
+            return ResponseEntity.ok(ApiResponse.succes("Task berhasil diupdate", task));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 
     @DeleteMapping("/{id}")
-//    @PreAuthorize("hasRole('MANAGER')")
-    public ResponseEntity<ApiResponse<Void>> deleteTask(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> deleteTask(
+            @PathVariable Long id,
+            Authentication authentication) {
         try {
-            taskService.deleteTask(id);
+            taskService.deleteTask(id, authentication.getName());
             return ResponseEntity.ok(ApiResponse.succes("Task berhasil dihapus", null));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
         }
     }
 
+    // Complete task - semua user bisa (nanti di service dibatasi)
     @PostMapping("/{id}/complete")
-//    @PreAuthorize("hasRole('STAFF')")
     public ResponseEntity<ApiResponse<TaskResponse>> completeTask(
             @PathVariable Long id,
             @RequestBody TaskCompleteRequest request,
@@ -101,7 +104,6 @@ public class TaskController {
     }
 
     @PostMapping("/{id}/approve")
-//    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ApiResponse<TaskResponse>> approveTask(
             @PathVariable Long id,
             Authentication authentication) {
@@ -114,7 +116,6 @@ public class TaskController {
     }
 
     @PostMapping("/{id}/reject")
-//    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ApiResponse<TaskResponse>> rejectTask(
             @PathVariable Long id,
             @RequestBody TaskRejectRequest request,
@@ -127,41 +128,56 @@ public class TaskController {
         }
     }
 
-//      Upload task attachments
-@PostMapping("/{id}/attachments")
-public ResponseEntity<ApiResponse<List<TaskAttachmentResponse>>> uploadAttachments(
-        @PathVariable Long id,
-        @RequestParam("attachments") List<MultipartFile> files, // ← ganti "file" → "attachments", MultipartFile → List
-        @RequestParam(value = "type", defaultValue = "task") String type,
-        Authentication authentication) {
-    try {
-        List<TaskAttachmentResponse> attachments = files.stream()
-                .map(file -> {
-                    try {
-                        return taskService.uploadAttachment(id, file, type, authentication.getName());
-                    } catch (IOException e) {
-                        throw new RuntimeException(e.getMessage());
-                    }
-                })
-                .toList();
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.succes("Attachment berhasil diupload", attachments));
-    } catch (Exception e) {
-        e.printStackTrace();
-        return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+    // Upload attachments
+    @PostMapping("/{id}/attachments")
+    public ResponseEntity<ApiResponse<List<TaskAttachmentResponse>>> uploadAttachments(
+            @PathVariable Long id,
+            @RequestParam("attachments") List<MultipartFile> files,
+            @RequestParam(value = "type", defaultValue = "task") String type,
+            Authentication authentication) {
+        try {
+            List<TaskAttachmentResponse> attachments = files.stream()
+                    .map(file -> {
+                        try {
+                            return taskService.uploadAttachment(id, file, type, authentication.getName());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e.getMessage());
+                        }
+                    })
+                    .toList();
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ApiResponse.succes("Attachment berhasil diupload", attachments));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
     }
-}
 
-//    Delete task attachments
+    // Delete attachment
     @DeleteMapping("/attachments/{attachmentId}")
     public ResponseEntity<ApiResponse<Void>> deleteAttachment(
-            @PathVariable Long attachmentId) {
+            @PathVariable Long attachmentId,
+            Authentication authentication) {
         try {
-            taskService.deleteAttachment(attachmentId);
+            taskService.deleteAttachment(attachmentId, authentication.getName());
             return ResponseEntity.ok(ApiResponse.succes("Attachment berhasil dihapus", null));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    // Update status saja
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<TaskResponse>> updateTaskStatus(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> payload,
+            Authentication authentication) {
+        try {
+            TaskResponse task = taskService.updateTaskStatus(id, payload.get("status"), authentication.getName());
+            return ResponseEntity.ok(ApiResponse.succes("Status berhasil diupdate", task));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 }

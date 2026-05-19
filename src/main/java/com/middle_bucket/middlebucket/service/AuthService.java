@@ -1,6 +1,5 @@
 package com.middle_bucket.middlebucket.service;
 
-
 import com.middle_bucket.middlebucket.dto.request.LoginRequest;
 import com.middle_bucket.middlebucket.dto.request.RegisterRequest;
 import com.middle_bucket.middlebucket.dto.response.AuthResponse;
@@ -45,15 +44,13 @@ public class AuthService {
         user.setCreatedAt(LocalDateTime.now());
 
         User savedUser = userRepository.save(user);
-
-        String token = jwtUtil.generateToken(savedUser.getEmail());
+        String token = jwtUtil.generateToken(savedUser.getEmail(), savedUser.getRole().name());
 
         return new AuthResponse(token,
                 savedUser.getId(),
                 savedUser.getName(),
                 savedUser.getEmail(),
                 savedUser.getRole() );
-
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -64,7 +61,7 @@ public class AuthService {
             throw new RuntimeException("Email atau password salah!");
         }
 
-        String token = jwtUtil.generateToken(user.getEmail());
+        String token = jwtUtil.generateToken(user.getEmail(), user.getRole().name());
 
         return new AuthResponse(
                 token,
@@ -87,5 +84,4 @@ public class AuthService {
                 user.getRole()
         );
     }
-
 }
