@@ -39,7 +39,9 @@ public class JwtFilter extends OncePerRequestFilter {
 
         if ("OPTIONS".equalsIgnoreCase(method)) return true;
 
-        return EXCLUDED_PATHS.stream().anyMatch(path::equals);
+        return EXCLUDED_PATHS.stream().anyMatch(path::equals)
+                || path.startsWith("/uploads/");
+
     }
 
     @Override

@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class TaskResponse {
@@ -25,6 +26,9 @@ public class TaskResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+//    attachment
+    private List<TaskAttachmentResponse> attachments;
+
     public static TaskResponse from(Task task) {
         TaskResponse dto = new TaskResponse();
         dto.setId(task.getId());
@@ -44,9 +48,17 @@ public class TaskResponse {
             dto.setAssigneeId(task.getAssignee().getId());
             dto.setAssigneeName(task.getAssignee().getName());
         }
+
         if (task.getCreatedBy() != null) {
             dto.setCreatedById(task.getCreatedBy().getId());
             dto.setCreatedByName(task.getCreatedBy().getName());
+        }
+
+        if (task.getAttachments() != null) {
+            dto.setAttachments(task.getAttachments()
+                    .stream()
+                    .map(TaskAttachmentResponse::from)
+                    .toList());
         }
         return dto;
     }
