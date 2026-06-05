@@ -25,10 +25,12 @@ public class JwtUtil {
 
     public String generateToken(String email, String role) {
         try {
+            String authority = role.startsWith("ROLE_") ? role : "ROLE_" + role;
+
             JWTClaimsSet claimsSet = new JWTClaimsSet.Builder()
                     .subject(email)
-                    .claim("role", role)
-                    .claim("authorities", role)
+                    .claim("role", authority)
+                    .claim("authorities", authority)
                     .issueTime(new Date())
                     .expirationTime(new Date(System.currentTimeMillis() + expiration))
                     .build();
@@ -46,7 +48,6 @@ public class JwtUtil {
         }
     }
 
-    // Tambahkan method untuk extract role dari token
     public String getRoleFromToken(String token) {
         try {
             SignedJWT signedJWT = parseAndVerify(token);
@@ -61,7 +62,6 @@ public class JwtUtil {
             SignedJWT signedJWT = parseAndVerify(token);
             Date expirationTime = signedJWT.getJWTClaimsSet().getExpirationTime();
             return expirationTime != null && expirationTime.after(new Date());
-
         } catch (ParseException | JOSEException e) {
             return false;
         }
@@ -71,7 +71,6 @@ public class JwtUtil {
         try {
             SignedJWT signedJWT = parseAndVerify(token);
             return signedJWT.getJWTClaimsSet().getSubject();
-
         } catch (ParseException | JOSEException e) {
             return null;
         }

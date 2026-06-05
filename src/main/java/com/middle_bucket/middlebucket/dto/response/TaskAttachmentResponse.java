@@ -14,7 +14,7 @@ public class TaskAttachmentResponse {
     private Long taskId;
     private String type;
     private String filename;
-    private String filePath;      // ← tambah: "tasks/filename.ext"
+    private String filePath;
     private String originalName;
     private String mimeType;
     private Integer size;
@@ -27,7 +27,7 @@ public class TaskAttachmentResponse {
         dto.setId(attachment.getId());
         dto.setType(attachment.getType().name());
         dto.setFilename(attachment.getFilename());
-        dto.setFilePath("tasks/" + attachment.getFilename()); // ← tambah ini
+        dto.setFilePath("tasks/" + attachment.getFilename()); //
         dto.setOriginalName(attachment.getOriginalName());
         dto.setMimeType(attachment.getMimeType());
         dto.setSize(attachment.getSize());

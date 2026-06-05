@@ -28,11 +28,11 @@ public class CustomUserDetailsService implements UserDetailsService {
                         "User tidak ditemukan dengan email: " + email
                 ));
 
-        String role = user.getRole() != null ? user.getRole().name() : "USER";
+        String role = user.getRole() != null ? user.getRole().name() : "STAFF";
 
         return org.springframework.security.core.userdetails.User
                 .withUsername(user.getEmail())
-                .password(user.getPassword())
+                .password(user.getPassword()) // Akan mengambil dari kolom password_hash
                 .authorities("ROLE_" + role)
                 .build();
     }

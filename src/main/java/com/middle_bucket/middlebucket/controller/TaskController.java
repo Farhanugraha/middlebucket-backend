@@ -5,6 +5,7 @@ import com.middle_bucket.middlebucket.dto.request.TaskRejectRequest;
 import com.middle_bucket.middlebucket.dto.request.TaskRequest;
 import com.middle_bucket.middlebucket.dto.response.ApiResponse;
 import com.middle_bucket.middlebucket.dto.response.TaskAttachmentResponse;
+import com.middle_bucket.middlebucket.dto.response.TaskHistoryResponse;
 import com.middle_bucket.middlebucket.dto.response.TaskResponse;
 import com.middle_bucket.middlebucket.dto.response.TaskStatsResponse;
 import com.middle_bucket.middlebucket.service.TaskService;
@@ -28,37 +29,50 @@ public class TaskController {
         this.taskService = taskService;
     }
 
-    // Semua user yang login bisa akses (tanpa PreAuthorize)
     @GetMapping
     public ResponseEntity<ApiResponse<List<TaskResponse>>> getAllTasks(
             @RequestParam(required = false) String status) {
-        List<TaskResponse> tasks = taskService.getAllTasks(status);
-        return ResponseEntity.ok(ApiResponse.succes("Berhasil mengambil tasks", tasks));
+        return ResponseEntity.ok(ApiResponse.succes("Berhasil mengambil tasks",
+                taskService.getAllTasks(status)));
     }
 
     @GetMapping("/stats")
     public ResponseEntity<ApiResponse<TaskStatsResponse>> getStats() {
-        return ResponseEntity.ok(ApiResponse.succes("Berhasil mengambil stats", taskService.getStats()));
+        return ResponseEntity.ok(ApiResponse.succes("Berhasil mengambil stats",
+                taskService.getStats()));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<TaskResponse>> getTaskById(@PathVariable Long id) {
         try {
-            return ResponseEntity.ok(ApiResponse.succes("Berhasil", taskService.getTaskById(id)));
+            return ResponseEntity.ok(ApiResponse.succes("Berhasil",
+                    taskService.getTaskById(id)));
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(e.getMessage()));
         }
     }
 
-    // Create task - semua user bisa (nanti di service dibatasi)
+    @GetMapping("/{id}/history")
+    public ResponseEntity<ApiResponse<List<TaskHistoryResponse>>> getTaskHistory(
+            @PathVariable Long id) {
+        try {
+            return ResponseEntity.ok(ApiResponse.succes("Berhasil mengambil history",
+                    taskService.getTaskHistory(id)));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
     @PostMapping
     public ResponseEntity<ApiResponse<TaskResponse>> createTask(
             @RequestBody TaskRequest request,
             Authentication authentication) {
         try {
-            TaskResponse task = taskService.createTask(request, authentication.getName());
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ApiResponse.succes("Task berhasil dibuat", task));
+                    .body(ApiResponse.succes("Task berhasil dibuat",
+                            taskService.createTask(request, authentication.getName())));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
@@ -70,8 +84,8 @@ public class TaskController {
             @RequestBody TaskRequest request,
             Authentication authentication) {
         try {
-            TaskResponse task = taskService.updateTask(id, request, authentication.getName());
-            return ResponseEntity.ok(ApiResponse.succes("Task berhasil diupdate", task));
+            return ResponseEntity.ok(ApiResponse.succes("Task berhasil diupdate",
+                    taskService.updateTask(id, request, authentication.getName())));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
@@ -85,11 +99,11 @@ public class TaskController {
             taskService.deleteTask(id, authentication.getName());
             return ResponseEntity.ok(ApiResponse.succes("Task berhasil dihapus", null));
         } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(e.getMessage()));
         }
     }
 
-    // Complete task - semua user bisa (nanti di service dibatasi)
     @PostMapping("/{id}/complete")
     public ResponseEntity<ApiResponse<TaskResponse>> completeTask(
             @PathVariable Long id,
@@ -128,7 +142,20 @@ public class TaskController {
         }
     }
 
-    // Upload attachments
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<TaskResponse>> updateTaskStatus(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> payload,
+            Authentication authentication) {
+        try {
+            return ResponseEntity.ok(ApiResponse.succes("Status berhasil diupdate",
+                    taskService.updateTaskStatus(id, payload.get("status"),
+                            authentication.getName())));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
     @PostMapping("/{id}/attachments")
     public ResponseEntity<ApiResponse<List<TaskAttachmentResponse>>> uploadAttachments(
             @PathVariable Long id,
@@ -139,7 +166,8 @@ public class TaskController {
             List<TaskAttachmentResponse> attachments = files.stream()
                     .map(file -> {
                         try {
-                            return taskService.uploadAttachment(id, file, type, authentication.getName());
+                            return taskService.uploadAttachment(id, file, type,
+                                    authentication.getName());
                         } catch (IOException e) {
                             throw new RuntimeException(e.getMessage());
                         }
@@ -148,12 +176,10 @@ public class TaskController {
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(ApiResponse.succes("Attachment berhasil diupload", attachments));
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 
-    // Delete attachment
     @DeleteMapping("/attachments/{attachmentId}")
     public ResponseEntity<ApiResponse<Void>> deleteAttachment(
             @PathVariable Long attachmentId,
@@ -167,17 +193,16 @@ public class TaskController {
         }
     }
 
-    // Update status saja
-    @PatchMapping("/{id}/status")
-    public ResponseEntity<ApiResponse<TaskResponse>> updateTaskStatus(
-            @PathVariable Long id,
-            @RequestBody Map<String, String> payload,
+    @DeleteMapping("/attachments/{attachmentId}/evidence")
+    public ResponseEntity<ApiResponse<Void>> deleteEvidenceAttachment(
+            @PathVariable Long attachmentId,
             Authentication authentication) {
         try {
-            TaskResponse task = taskService.updateTaskStatus(id, payload.get("status"), authentication.getName());
-            return ResponseEntity.ok(ApiResponse.succes("Status berhasil diupdate", task));
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            taskService.deleteEvidenceAttachment(attachmentId, authentication.getName());
+            return ResponseEntity.ok(ApiResponse.succes("Evidence berhasil dihapus", null));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error(e.getMessage()));
         }
     }
 }

@@ -1,9 +1,6 @@
 package com.middle_bucket.middlebucket.entity;
 
 import jakarta.persistence.*;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -28,7 +25,7 @@ public class User {
     @Column(length = 15)
     private String phone;
 
-    @Column(name = "password_hash", nullable = false)
+    @Column(name = "password", nullable = false)
     private String password;
 
     @Enumerated(EnumType.STRING)
@@ -36,6 +33,4 @@ public class User {
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
-
-
 }

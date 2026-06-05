@@ -4,14 +4,13 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -21,17 +20,17 @@ import java.util.List;
 public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
-    private final UserDetailsService userDetailsService;
+
+    private static final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     private static final List<String> EXCLUDED_PATHS = List.of(
-            "/api/auth/login",
-            "/api/auth/register",
-            "/test"
+            "/api/auth/**",
+            "/test/**",
+            "/uploads/**"
     );
 
-    public JwtFilter(JwtUtil jwtUtil, UserDetailsService userDetailsService) {
+    public JwtFilter(JwtUtil jwtUtil) {
         this.jwtUtil = jwtUtil;
-        this.userDetailsService = userDetailsService;
     }
 
     @Override
@@ -41,8 +40,8 @@ public class JwtFilter extends OncePerRequestFilter {
 
         if ("OPTIONS".equalsIgnoreCase(method)) return true;
 
-        return EXCLUDED_PATHS.stream().anyMatch(path::startsWith)
-                || path.startsWith("/uploads/");
+        return EXCLUDED_PATHS.stream()
+                .anyMatch(pattern -> pathMatcher.match(pattern, path));
     }
 
     @Override
@@ -60,34 +59,48 @@ public class JwtFilter extends OncePerRequestFilter {
 
         String token = authHeader.substring(7);
 
+        if (!jwtUtil.validateToken(token)) {
+            sendUnauthorized(response, "Token tidak valid atau sudah expired");
+            return;
+        }
+
         try {
             String email = jwtUtil.getEmailFromToken(token);
             String role = jwtUtil.getRoleFromToken(token);
 
-            System.out.println("=== JWT Filter Debug ===");
+            // ← TAMBAH INI SEMENTARA
+            System.out.println("=== JWT DEBUG ===");
             System.out.println("Email: " + email);
-            System.out.println("Role from token: " + role);
+            System.out.println("Role: " + role);
             System.out.println("Request URI: " + request.getRequestURI());
+            System.out.println("=================");
 
-            if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(role));
-
-                System.out.println("Authorities set: " + authorities);
+            if (email != null && role != null
+                    && SecurityContextHolder.getContext().getAuthentication() == null) {
 
                 UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(email, null, authorities);
+                        new UsernamePasswordAuthenticationToken(
+                                email,
+                                null,
+                                List.of(new SimpleGrantedAuthority(role))
+                        );
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
-
-                System.out.println("Authentication set successfully for: " + email);
             }
 
             chain.doFilter(request, response);
 
         } catch (Exception e) {
-            System.err.println("JWT Filter error: " + e.getMessage());
-            e.printStackTrace();
-            chain.doFilter(request, response);
+            System.out.println("=== JWT ERROR: " + e.getMessage());
+            sendUnauthorized(response, "Token tidak dapat diproses");
         }
+    }
+
+    private void sendUnauthorized(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.getWriter().write("""
+                {"succes":false,"message":"%s","data":null}
+                """.formatted(message));
     }
 }

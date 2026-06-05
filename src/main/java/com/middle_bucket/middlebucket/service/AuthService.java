@@ -3,8 +3,8 @@ package com.middle_bucket.middlebucket.service;
 import com.middle_bucket.middlebucket.dto.request.LoginRequest;
 import com.middle_bucket.middlebucket.dto.request.RegisterRequest;
 import com.middle_bucket.middlebucket.dto.response.AuthResponse;
-import com.middle_bucket.middlebucket.entity.Role;
 import com.middle_bucket.middlebucket.entity.User;
+import com.middle_bucket.middlebucket.entity.Role;
 import com.middle_bucket.middlebucket.repository.UserRepository;
 import com.middle_bucket.middlebucket.security.JwtUtil;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -16,23 +16,41 @@ import java.time.LocalDateTime;
 public class AuthService {
 
     private final UserRepository userRepository;
-    private final JwtUtil jwtUtil;
     private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
 
-    public AuthService(UserRepository userRepository, JwtUtil jwtUtil, PasswordEncoder passwordEncoder) {
+    public AuthService(UserRepository userRepository,
+                       PasswordEncoder passwordEncoder,
+                       JwtUtil jwtUtil) {
         this.userRepository = userRepository;
-        this.jwtUtil = jwtUtil;
         this.passwordEncoder = passwordEncoder;
+        this.jwtUtil = jwtUtil;
+    }
+
+    public AuthResponse login(LoginRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new RuntimeException("Email atau password salah"));
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new RuntimeException("Email atau password salah");
+        }
+
+        String roleString = user.getRole().name();
+        String token = jwtUtil.generateToken(user.getEmail(), roleString);
+
+        // Gunakan constructor dengan semua field
+        return new AuthResponse(
+                token,
+                user.getId(),
+                user.getName(),
+                user.getEmail(),
+                user.getRole()
+        );
     }
 
     public AuthResponse register(RegisterRequest request) {
-
-        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new RuntimeException("Email sudah terdaftar!");
-        }
-
-        if (userRepository.findByPhone(request.getPhone()).isPresent()){
-            throw new RuntimeException("Nomor telepon sudah terdaftar!");
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new RuntimeException("Email sudah terdaftar");
         }
 
         User user = new User();
@@ -43,26 +61,11 @@ public class AuthService {
         user.setRole(Role.STAFF);
         user.setCreatedAt(LocalDateTime.now());
 
-        User savedUser = userRepository.save(user);
-        String token = jwtUtil.generateToken(savedUser.getEmail(), savedUser.getRole().name());
-
-        return new AuthResponse(token,
-                savedUser.getId(),
-                savedUser.getName(),
-                savedUser.getEmail(),
-                savedUser.getRole() );
-    }
-
-    public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail()).orElseThrow(()
-                -> new RuntimeException("Email atau password salah!"));
-
-        if(!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Email atau password salah!");
-        }
+        userRepository.save(user);
 
         String token = jwtUtil.generateToken(user.getEmail(), user.getRole().name());
 
+        // Gunakan constructor dengan semua field
         return new AuthResponse(
                 token,
                 user.getId(),
@@ -76,6 +79,7 @@ public class AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User tidak ditemukan"));
 
+        // Token tidak diperlukan untuk getCurrentUser, kirim null
         return new AuthResponse(
                 null,
                 user.getId(),
